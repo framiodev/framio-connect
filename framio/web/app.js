@@ -2,18 +2,12 @@
 /* Framio Connect UI */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const TOK = $('meta[name=tok]').content;
 let S = null, STR = {}, LOGS = [], page = "share", viewerId = null, uploading = false;
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const lang = () => (S && S.lang) || "en";
 const t = (k, kw) => {
   let s = (STR[lang()] || {})[k] ?? (STR.en || {})[k] ?? k;
   return kw ? s.replace(/\{(\w+)\}/g, (_, a) => kw[a] ?? "") : s;
 };
-async function api(name, ...args) {
-  const r = await fetch("/api/call/" + name, { method: "POST", headers: { "X-Token": TOK, "Content-Type": "application/json" }, body: JSON.stringify({ args }) });
-  return r.json();
-}
 const fmtId = (id) => String(id || "").replace(/(\d{3})(?=\d)/g, "$1 ");
 const svg = (id, cls = "ic") => `<svg class="${cls}"><use href="#i-${id}"/></svg>`;
 
@@ -137,8 +131,8 @@ function render(first) {
 }
 
 function monitor(opts) {
-  const { name, sub, cls = "", cursor = false, delay = 0 } = opts;
-  return `<div class="mon ${cls}" style="animation-delay:${delay}ms"><div class="screen"><div class="wall"></div>${cursor ? svg("cursor", "cursor") : ""}</div><div class="neck"></div><div class="foot"></div><b>${esc(name)}</b><small>${esc(sub)}</small></div>`;
+  const { name, sub, cls = "", cursor = false, delay = 0, key = "" } = opts;
+  return `<div class="mon ${cls}" style="animation-delay:${delay}ms"><div class="screen"><div class="wall"></div>${cursor ? svg("cursor", "cursor") : ""}</div><div class="neck"></div><div class="foot"></div><b>${esc(name)}</b><small data-k="${esc(key)}">${esc(sub)}</small></div>`;
 }
 function renderStage() {
   let h = "";
@@ -146,7 +140,7 @@ function renderStage() {
     const by = Object.fromEntries(S.clients.map((c) => [c.side, c]));
     const slot = (side, d) => {
       const c = by[side];
-      return c ? monitor({ name: c.name, sub: c.ip, cls: S.active === c.name ? "on" : "", cursor: S.active === c.name, delay: d })
+      return c ? monitor({ name: c.name, sub: c.ip, key: c.side, cls: S.active === c.name ? "on" : "", cursor: S.active === c.name, delay: d })
                : monitor({ name: t("waiting_pc"), sub: t(side + "_s"), cls: "empty", delay: d });
     };
     const link = (side) => `<div class="link ${by[side] ? "live" : ""}"></div>`;
@@ -161,6 +155,10 @@ function renderStage() {
   const sig = h + S.active + S.status;
   const el = $("#stage");
   if (el._sig !== sig) { el._sig = sig; el.innerHTML = h; }
+  if (S.mode === "host") for (const c of S.clients) {          // live latency without re-creating the monitors
+    const s = $(`#stage small[data-k="${c.side}"]`);
+    if (s) s.textContent = c.ip + (c.rtt != null ? " · " + c.rtt + " ms" : "") + " · " + (c.udp ? "UDP" : "TCP");
+  }
 }
 
 const LOG_LV = { error: "bad", auth_failed: "bad", auth_rejected: "bad", no_connection: "warn", r_bad_password: "bad", r_denied: "warn", connected: "ok", connected_host: "ok", r_started: "ok", started: "ok" };
@@ -252,39 +250,13 @@ let patchTimer;
 function patchSoon(p) { clearTimeout(patchTimer); patchTimer = setTimeout(() => api("set_config", p), 350); }
 
 /* ------------------------------------------------------------ file sending */
-async function collectEntries(dt) {
-  const out = [];
-  const walk = async (entry, prefix) => {
-    if (entry.isFile) {
-      const f = await new Promise((res, rej) => entry.file(res, rej));
-      out.push({ file: f, rel: prefix + f.name });
-    } else if (entry.isDirectory) {
-      const rd = entry.createReader();
-      let batch;
-      do {
-        batch = await new Promise((res, rej) => rd.readEntries(res, rej));
-        for (const e of batch) await walk(e, prefix + entry.name + "/");
-      } while (batch.length);
-    }
-  };
-  const items = dt.items ? [...dt.items] : [];
-  const ents = items.map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
-  if (ents.length) { for (const e of ents) await walk(e, ""); }
-  else for (const f of dt.files) out.push({ file: f, rel: f.name });
-  return out;
-}
 async function sendEntries(list) {
   if (!list.length) return;
   if (!target) return toast(t("no_target"), "warn");
   if (uploading) return;
   uploading = true;
-  const batch = [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, "0")).join("");
   try {
-    for (const { file, rel } of list) {
-      const r = await fetch(`/api/upload?b=${batch}&rel=${encodeURIComponent(rel)}`, { method: "POST", headers: { "X-Token": TOK }, body: file });
-      if (!r.ok) throw new Error("upload failed");
-    }
-    const res = await api("send", batch, target, []);
+    const res = await uploadSend(list, target);
     if (res && res.error) toast(res.error, "danger");
   } catch (e) { toast(String(e.message || e), "danger"); }
   uploading = false;

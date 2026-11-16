@@ -65,6 +65,31 @@ for _ in range(8):                      # retry: a human moving the mouse can ra
 check("mouse injection", ok, (p.x, p.y))
 winapi.user32.SetCursorPos(*old)
 
+# 3b) UDP fast path, rate limiting and latency measurement
+conn = srv.clients["right"]
+check("udp registered", wait(lambda: conn.udp_addr is not None and cli.udp_ok, 5))
+moves = []
+orig_handle = cli.inj.handle
+last_m = [None]
+def _spy(p_):
+    if p_ and p_[0] == "M":
+        moves.append(time.perf_counter())
+        last_m[0] = (int(p_[1]), int(p_[2]))
+    return orig_handle(p_)
+cli.inj.handle = _spy
+t0 = time.perf_counter()
+sent = 0
+while time.perf_counter() - t0 < 1.0:          # a 1000 Hz mouse stream
+    conn.set_pos(20000 + sent % 500, 30000)
+    sent += 1
+    time.sleep(0.001)
+time.sleep(0.3)
+rate = len(moves) / 1.3
+check("moves rate-limited (<=300/s on the wire)", 0 < len(moves) <= 330, f"{sent} produced -> {len(moves)} injected")
+check("last position delivered", wait(lambda: last_m[0] == conn.pos, 1), f"{last_m[0]} vs {conn.pos}")
+cli.inj.handle = orig_handle
+check("rtt measured", wait(lambda: conn.rtt is not None, 6), f"{conn.rtt:.2f} ms" if conn.rtt is not None else "")
+
 # 4) clipboard text both directions (restores the user's clipboard afterwards)
 saved = winapi.clip_get()
 srv.clients["right"].send("CT " + share._b64("hello Ã¼ÄŸÅŸ from host"))

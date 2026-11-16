@@ -118,7 +118,8 @@ def firewall_command(share_port, remote_port, discovery_port):
     """netsh command line (to be run elevated) that opens the ports Framio needs."""
     exe = exe_path() or "python.exe"
     rules = []
-    for name, proto, port in (("Share", "TCP", share_port), ("Remote", "TCP", remote_port),
+    for name, proto, port in (("Share", "TCP", share_port), ("Share UDP", "UDP", share_port),
+                              ("Remote", "TCP", remote_port),
                               ("Discovery", "UDP", discovery_port)):
         rn = f"{APP_NAME} {name}"
         rules.append(f'netsh advfirewall firewall delete rule name="{rn}" >nul & '

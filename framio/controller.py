@@ -13,6 +13,7 @@ import time
 
 from . import DISCOVERY_PORT, GITHUB_REPO, __version__, config, i18n, transfer, updater
 from .discovery import Discovery
+from .dragwatch import DragWatcher
 from .net import local_ips
 from .remote import RemoteHost, RemoteViewer
 from .share import Client, Server
@@ -38,6 +39,7 @@ class Controller:
         self.update_info = None
         self.attention = lambda: None       # set by the launcher: bring window to front
         self.titlebar = lambda dark: None   # set by the launcher
+        self.overlay_cb = lambda action, edge=None: None   # show/hide the edge drop panel (launcher)
         self.outbox = os.path.join(tempfile.gettempdir(), "FramioOutbox")
         self._clean_outbox()
         self.disc = Discovery(self._disc_info)
@@ -46,6 +48,8 @@ class Controller:
             self.api_share_toggle(force_start=True)
         if self.cfg["remote_enabled"]:
             self._start_remote()
+        self.dw = DragWatcher(self._drag_candidates, self._overlay_show, self._overlay_hide)
+        self.dw.start()
         threading.Thread(target=self._tick, daemon=True).start()
         threading.Thread(target=self._update_loop, daemon=True).start()
 
@@ -139,6 +143,24 @@ class Controller:
             if s != sig:
                 sig = s
                 self.changed()
+
+    # ------------------------------------------------------------ edge drop panel
+    def _drag_candidates(self):
+        if self.server:
+            if self.server.active:
+                return []
+            return [{"edge": c["side"], "name": c["name"], "key": c["side"]} for c in self.clients]
+        if self.client and self.client.connected:
+            edge = "left" if self.cfg["side"] == "right" else "right"   # the edge that faces the host
+            return [{"edge": edge, "name": "host", "key": "host"}]
+        return []
+
+    def _overlay_show(self, c):
+        self.emit("overlay", name=c["name"], key=c["key"], edge=c["edge"])
+        self.overlay_cb("show", c["edge"])
+
+    def _overlay_hide(self):
+        self.overlay_cb("hide")
 
     # ------------------------------------------------------------ share
     def _start_share(self):

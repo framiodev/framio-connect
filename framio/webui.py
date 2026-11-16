@@ -59,8 +59,8 @@ def make_handler(ctrl, token, port_holder):
             if not self._host_ok():
                 return self._send(403, b"forbidden", "text/plain")
             path = unquote(u.path)
-            if path == "/":
-                with open(os.path.join(WEB_DIR, "index.html"), "r", encoding="utf-8") as f:
+            if path in ("/", "/overlay"):
+                with open(os.path.join(WEB_DIR, "index.html" if path == "/" else "overlay.html"), "r", encoding="utf-8") as f:
                     html = f.read().replace("__TOKEN__", token)
                 return self._send(200, html.encode(), "text/html; charset=utf-8",
                                   {"Content-Security-Policy": CSP})

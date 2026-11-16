@@ -1,16 +1,28 @@
-"""Keyboard/mouse sharing (host = Server, controlled PC = Client) + clipboard + file transfer."""
+"""Keyboard/mouse sharing (host = Server, controlled PC = Client) + clipboard + file transfer.
+
+Latency design
+  * Cursor positions are ABSOLUTE, so they are sent over UDP (a lost/late packet is simply
+    superseded by the next one - no TCP head-of-line stalls on Wi-Fi) at most MOVE_HZ times/s.
+  * Buttons, keys, wheel, clipboard and files stay on the reliable TCP channel; before a button
+    event the current position is re-sent over TCP so clicks always land where the cursor is.
+  * UDP packets carry a truncated HMAC (per-session secret) and a sequence number.
+  * The server pings every 2 s so the UI can show the real round-trip time.
+"""
 import base64
 import ctypes
 import ctypes.wintypes as wt
+import hashlib
+import hmac
+import queue
 import secrets
 import socket
+import struct
 import threading
-import queue
 import time
 
 from . import transfer
 from .inject import Injector
-from .net import (AuthError, client_handshake, keepalive, server_challenge,
+from .net import (AuthError, client_handshake, keepalive, mac, server_challenge,
                   server_proof, server_verify)
 from .winapi import (BTN_MSG, HOOKPROC, KBDLLHOOKSTRUCT, MSLLHOOKSTRUCT, VK_SCROLL,
                      WH_KEYBOARD_LL, WH_MOUSE_LL, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
@@ -20,6 +32,18 @@ from .winapi import (BTN_MSG, HOOKPROC, KBDLLHOOKSTRUCT, MSLLHOOKSTRUCT, VK_SCRO
 CLIP_FILE_LIMIT = 300 * 1024 * 1024
 TEXT_LIMIT = 1_000_000
 LINE_LIMIT = 3_000_000
+MOVE_HZ = 250
+MOVE_INTERVAL = 1.0 / MOVE_HZ
+
+kernel32.GetCurrentThread.restype = ctypes.c_void_p
+kernel32.SetThreadPriority.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+
+def _boost_thread(level):
+    try:
+        kernel32.SetThreadPriority(kernel32.GetCurrentThread(), level)
+    except Exception:
+        pass
 
 
 def _b64(s):
@@ -33,39 +57,76 @@ def _unb64(s):
 class ClientConn:
     """Server-side handle for one connected, controlled PC."""
 
-    def __init__(self, sock, side, w, h, name, ip):
+    def __init__(self, sock, side, w, h, name, ip, usock=None):
         self.sock, self.side, self.w, self.h, self.name, self.ip = sock, side, w, h, name, ip
         self.q = queue.Queue(maxsize=5000)
+        self.evt = threading.Event()
         self.alive = True
         self.last_sig_out = None
+        self.pos, self.dirty, self.force_tcp = None, False, False
+        self.sid, self.secret = secrets.token_hex(4), secrets.token_hex(16)
+        self.udp_addr, self.usock, self.seq = None, usock, 0
+        self.rtt, self.rtt_shown = None, None
         threading.Thread(target=self._send_loop, daemon=True).start()
 
+    # ---- producers (called from the hook thread: must be cheap)
     def send(self, line):
         try:
             self.q.put_nowait(line)
         except queue.Full:
             pass
+        self.evt.set()
+
+    def set_pos(self, nx, ny, tcp=False):
+        self.pos, self.dirty = (nx, ny), True
+        if tcp:
+            self.force_tcp = True
+        self.evt.set()
+
+    # ---- consumer
+    def _send_move(self, nx, ny):
+        if self.udp_addr and self.usock:
+            self.seq += 1
+            pkt = struct.pack(">IHH", self.seq, nx, ny)
+            tag = hmac.new(self.secret.encode(), pkt, hashlib.sha256).digest()[:8]
+            self.usock.sendto(pkt + tag, self.udp_addr)
+        else:
+            self.sock.sendall(b"M %d %d\n" % (nx, ny))
 
     def _send_loop(self):
+        _boost_thread(1)
+        last = 0.0
         while self.alive:
-            item = self.q.get()
-            if item is None:
+            self.evt.wait()
+            self.evt.clear()
+            if not self.alive:
                 break
-            lines = [item]
+            items = []
             try:
                 while True:
-                    nxt = self.q.get_nowait()
-                    if nxt is None:
+                    it = self.q.get_nowait()
+                    if it is None:
                         self.alive = False
                         break
-                    if nxt[0] == "M" and lines[-1][0] == "M":
-                        lines[-1] = nxt          # coalesce consecutive mouse moves
-                    else:
-                        lines.append(nxt)
+                    items.append(it)
             except queue.Empty:
                 pass
             try:
-                self.sock.sendall(("\n".join(lines) + "\n").encode())
+                if items:
+                    out = []
+                    if self.pos and (self.force_tcp or (self.dirty and any(i[0] == "B" for i in items))):
+                        out.append("M %d %d" % self.pos)     # clicks must land where the cursor is
+                        self.dirty = self.force_tcp = False
+                    out.extend(items)
+                    self.sock.sendall(("\n".join(out) + "\n").encode())
+                if self.dirty and self.pos:
+                    wait = MOVE_INTERVAL - (time.perf_counter() - last)
+                    if wait > 0:
+                        time.sleep(wait)
+                    nx, ny = self.pos
+                    self.dirty = False
+                    self._send_move(nx, ny)
+                    last = time.perf_counter()
             except OSError:
                 break
         self.close()
@@ -76,6 +137,7 @@ class ClientConn:
             self.q.put_nowait(None)
         except queue.Full:
             pass
+        self.evt.set()
         try:
             self.sock.close()
         except OSError:
@@ -88,14 +150,18 @@ class Server:
         self.events = events or (lambda kind, **kw: None)
         self.clip_text, self.clip_files = clip_text, clip_files
         self.clients = {}
+        self.by_sid = {}
         self.pending = {}          # token -> (paths, created)
         self.active = None
         self.vx = self.vy = self.cx = self.cy = 0
         self.held = set()
+        self.btns = set()
         self.last_leave = 0.0
         self.running = False
-        self.lsock = None
+        self.lsock = self.usock = None
         self.tid = None
+        self._b = (0, 0, 0, 0)
+        self._bt = 0.0
 
     # ------------------------------------------------------------ lifecycle
     def start(self):
@@ -104,7 +170,15 @@ class Server:
         self.lsock.bind(("0.0.0.0", self.port))
         self.lsock.listen(8)
         self.running = True
+        try:
+            self.usock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.usock.bind(("0.0.0.0", self.port))
+            threading.Thread(target=self._udp_loop, daemon=True).start()
+        except OSError:
+            self.usock = None                      # TCP-only fallback
+        self._b, self._bt = self._bounds(), time.time()
         threading.Thread(target=self._accept_loop, daemon=True).start()
+        threading.Thread(target=self._ping_loop, daemon=True).start()
         ready = threading.Event()
         threading.Thread(target=self._hook_thread, args=(ready,), daemon=True).start()
         ready.wait(3)
@@ -112,10 +186,11 @@ class Server:
     def stop(self):
         self.running = False
         self.active = None
-        try:
-            self.lsock.close()
-        except Exception:
-            pass
+        for s in (self.lsock, self.usock):
+            try:
+                s.close()
+            except Exception:
+                pass
         for c in list(self.clients.values()):
             c.close()
         self.clients.clear()
@@ -123,7 +198,9 @@ class Server:
             user32.PostThreadMessageW(self.tid, WM_QUIT, 0, 0)
 
     def client_list(self):
-        return [{"name": c.name, "side": c.side, "ip": c.ip} for c in self.clients.values()]
+        return [{"name": c.name, "side": c.side, "ip": c.ip,
+                 "rtt": None if c.rtt is None else round(c.rtt, 1), "udp": bool(c.udp_addr)}
+                for c in self.clients.values()]
 
     def _emit_clients(self):
         self.events("clients", clients=self.client_list())
@@ -136,6 +213,31 @@ class Server:
             except OSError:
                 break
             threading.Thread(target=self._serve, args=(s, addr), daemon=True).start()
+
+    def _udp_loop(self):
+        while self.running:
+            try:
+                data, addr = self.usock.recvfrom(128)
+            except OSError:
+                break
+            p = data.decode(errors="ignore").split()
+            if len(p) == 3 and p[0] == "HI":
+                conn = self.by_sid.get(p[1])
+                if conn and hmac.compare_digest(p[2], mac(conn.secret, "HI" + p[1])[:16]):
+                    first = conn.udp_addr is None
+                    conn.udp_addr = addr
+                    try:
+                        self.usock.sendto(b"HOK", addr)
+                    except OSError:
+                        pass
+                    if first:
+                        self._emit_clients()
+
+    def _ping_loop(self):
+        while self.running:
+            time.sleep(2)
+            for c in list(self.clients.values()):
+                c.send("P %.6f" % time.perf_counter())
 
     def _serve(self, s, addr):
         conn = None
@@ -162,11 +264,14 @@ class Server:
                 s.close()
                 return
             s.settimeout(None)
-            conn = ClientConn(s, side, w, h, name, addr[0])
+            conn = ClientConn(s, side, w, h, name, addr[0], self.usock)
             old = self.clients.get(side)
             self.clients[side] = conn
+            self.by_sid[conn.sid] = conn
             if old:
                 old.close()
+            if self.usock:
+                conn.send(f"UDP {conn.sid} {conn.secret}")
             self.log("connected", name=name, ip=addr[0], side=side)
             self._emit_clients()
             while True:
@@ -178,6 +283,15 @@ class Server:
                     txt = _unb64(q[1])
                     conn.last_sig_out = repr(("text", txt))
                     clip_set_text(txt)
+                elif len(q) == 2 and q[0] == "Q":
+                    try:
+                        ms = (time.perf_counter() - float(q[1])) * 1000
+                    except ValueError:
+                        continue
+                    conn.rtt = ms if conn.rtt is None else conn.rtt * 0.7 + ms * 0.3
+                    if conn.rtt_shown is None or abs(conn.rtt - conn.rtt_shown) >= 1:
+                        conn.rtt_shown = conn.rtt
+                        self._emit_clients()
         except Exception as e:
             self.log("error", msg=str(e), ip=addr[0])
         finally:
@@ -187,6 +301,7 @@ class Server:
                     self.events("active", name=None)
                 if self.clients.get(conn.side) is conn:
                     del self.clients[conn.side]
+                self.by_sid.pop(conn.sid, None)
                 conn.close()
                 self.log("disconnected", name=conn.name)
                 self._emit_clients()
@@ -247,6 +362,7 @@ class Server:
 
     # ------------------------------------------------------------ hooks
     def _hook_thread(self, ready):
+        _boost_thread(2)
         self.tid = kernel32.GetCurrentThreadId()
         self._mp = HOOKPROC(self._mouse)
         self._kp = HOOKPROC(self._kb)
@@ -269,14 +385,16 @@ class Server:
         return x0, y0, x0 + sysmetric(78) - 1, y0 + sysmetric(79) - 1
 
     def _enter(self, conn, y):
-        x0, y0, x1, y1 = self._bounds()
+        self._b, self._bt = self._bounds(), time.time()
+        x0, y0, x1, y1 = self._b
         self.cx, self.cy = sysmetric(0) // 2, sysmetric(1) // 2
         self.vx = 0 if conn.side == "right" else conn.w - 1
         frac = (y - y0) / max(1, y1 - y0)
         self.vy = min(conn.h - 1, max(0, int(frac * conn.h)))
         self.held.clear()
+        self.btns.clear()
         self.active = conn
-        self._send_pos(conn)
+        self._send_pos(conn, tcp=True)
         user32.SetCursorPos(self.cx, self.cy)
         threading.Thread(target=self._clip_to, args=(conn,), daemon=True).start()
         self.events("active", name=conn.name)
@@ -287,18 +405,18 @@ class Server:
             return
         self.active = None
         self.held.clear()
+        self.btns.clear()
         conn.send("R")
         conn.send("GC")          # ask the PC we are leaving for its clipboard
-        x0, y0, x1, y1 = self._bounds()
+        x0, y0, x1, y1 = self._b
         y = int(y0 + self.vy / max(1, conn.h - 1) * (y1 - y0))
         user32.SetCursorPos(x1 - 4 if conn.side == "right" else x0 + 4, y)
         self.last_leave = time.time()
         self.events("active", name=None)
 
-    def _send_pos(self, conn):
-        nx = int(self.vx * 65535 / max(1, conn.w - 1))
-        ny = int(self.vy * 65535 / max(1, conn.h - 1))
-        conn.send(f"M {nx} {ny}")
+    def _send_pos(self, conn, tcp=False):
+        conn.set_pos(int(self.vx * 65535 / max(1, conn.w - 1)),
+                     int(self.vy * 65535 / max(1, conn.h - 1)), tcp)
 
     def _mouse(self, n, w, l):
         try:
@@ -307,8 +425,10 @@ class Server:
                 if not (ms.flags & 1):            # skip injected events
                     c = self.active
                     if c is None:
-                        if w == WM_MOUSEMOVE and self._check_edge(ms.pt.x, ms.pt.y):
-                            return 1
+                        if w == WM_MOUSEMOVE and self.clients:
+                            x, b = ms.pt.x, self._b       # cheap pre-check: only act at the edges
+                            if (x >= b[2] or x <= b[0]) and self._check_edge(x, ms.pt.y):
+                                return 1
                     else:
                         self._remote_mouse(c, w, ms)
                         return 1
@@ -317,11 +437,14 @@ class Server:
         return user32.CallNextHookEx(None, n, w, l)
 
     def _check_edge(self, x, y):
-        if not self.clients or time.time() - self.last_leave < 0.4:
+        now = time.time()
+        if now - self.last_leave < 0.4:
             return False
+        if now - self._bt > 2:
+            self._b, self._bt = self._bounds(), now
         if user32.GetAsyncKeyState(0x01) & 0x8000 or user32.GetAsyncKeyState(0x02) & 0x8000:
-            return False                          # no switching while dragging
-        x0, y0, x1, y1 = self._bounds()
+            return False                          # no switching while dragging (drop panel handles that)
+        x0, y0, x1, y1 = self._b
         side = "right" if x >= x1 else "left" if x <= x0 else None
         conn = self.clients.get(side) if side else None
         if conn and conn.alive:
@@ -337,13 +460,15 @@ class Server:
             self.vx += dx
             self.vy = min(c.h - 1, max(0, self.vy + dy))
             if (c.side == "right" and self.vx < 0) or (c.side == "left" and self.vx > c.w - 1):
-                self._leave()
-                return
+                if 0 not in self.btns:            # while dragging, stay on this PC so the drop panel can catch it
+                    self._leave()
+                    return
             self.vx = min(c.w - 1, max(0, self.vx))
             self._send_pos(c)
             user32.SetCursorPos(self.cx, self.cy)
         elif w in BTN_MSG:
             b, d = BTN_MSG[w]
+            (self.btns.add if d else self.btns.discard)(b)
             c.send(f"B {b} {d}")
         elif w in (WM_XBUTTONDOWN, WM_XBUTTONUP):
             b = 3 if (ms.mouseData >> 16) == 1 else 4
@@ -391,6 +516,7 @@ class Client:
         self.inj = Injector()
         self.last_sig_out = None
         self.wlock = threading.Lock()
+        self.udp_ok = False
 
     def start(self):
         threading.Thread(target=self._run, daemon=True).start()
@@ -408,6 +534,7 @@ class Client:
         return [role, self.side, str(sysmetric(0)), str(sysmetric(1)), name]
 
     def _run(self):
+        _boost_thread(1)
         while not self.stop_flag:
             try:
                 self.events("state", state="connecting")
@@ -418,7 +545,7 @@ class Client:
             except Exception as e:
                 if not self.stop_flag:
                     self.log("no_connection", msg=str(e))
-            self.connected = False
+            self.connected = self.udp_ok = False
             self.inj.release_all()
             self.events("state", state="disconnected")
             for _ in range(20):
@@ -456,8 +583,49 @@ class Client:
                 threading.Thread(target=self._pull, args=(p[1], p[2]), daemon=True).start()
             elif t == "GC":
                 threading.Thread(target=self._clip_to_host, daemon=True).start()
-        except (IndexError, ValueError):
+            elif t == "P":
+                self.send_line("Q " + p[1])
+            elif t == "UDP":
+                threading.Thread(target=self._udp_run, args=(p[1], p[2]), daemon=True).start()
+        except (IndexError, ValueError, OSError):
             pass
+
+    # ---- UDP fast path for cursor positions
+    def _udp_run(self, sid, secret):
+        _boost_thread(2)
+        try:
+            u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            u.bind(("", 0))
+            u.settimeout(0.5)
+        except OSError:
+            return
+        key = secret.encode()
+        hello = f"HI {sid} {mac(secret, 'HI' + sid)[:16]}".encode()
+        last, reg = -1, 0.0
+        while self.connected and not self.stop_flag:
+            if not self.udp_ok and time.time() - reg > 0.8:
+                try:
+                    u.sendto(hello, (self.host, self.port))
+                except OSError:
+                    pass
+                reg = time.time()
+            try:
+                data, _ = u.recvfrom(64)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if data[:3] == b"HOK":
+                self.udp_ok = True
+            elif len(data) == 16:
+                pkt, tag = data[:8], data[8:]
+                if hmac.compare_digest(tag, hmac.new(key, pkt, hashlib.sha256).digest()[:8]):
+                    seq, nx, ny = struct.unpack(">IHH", pkt)
+                    if seq > last:
+                        last = seq
+                        self.udp_ok = True
+                        self.inj.handle(["M", str(nx), str(ny)])
+        u.close()
 
     def _pull(self, token, mode):
         try:
