@@ -27,6 +27,8 @@ function onEvent(m) {
     case "log": LOGS.push(m.item); LOGS = LOGS.slice(-80); renderLog(true); break;
     case "toast": toast(t(m.key, m.kw), m.kind); break;
     case "approve": showApprove(m); break;
+    case "overlay": showDropOv(m); break;
+    case "overlay_hide": hideDropOv(); break;
     case "viewer_closed": if (m.vid === viewerId) closeViewer(false); break;
   }
 }
@@ -262,6 +264,36 @@ async function sendEntries(list) {
   uploading = false;
 }
 
+
+/* ---- drop zone shown while a file drag is held against a screen edge */
+let ovTarget = null, ovBusy = false;
+function showDropOv(m) {
+  ovTarget = m; ovBusy = false;
+  const el = $("#dropOv");
+  el.className = ""; el.dataset.edge = m.edge; el.hidden = false;
+  $("#dovTitle").textContent = t("drop_to", { name: m.key === "host" ? t("host_word") : m.name });
+  $("#dovSub").textContent = t("drop_release");
+}
+function hideDropOv() { ovTarget = null; $("#dropOv").hidden = true; }
+async function dropToOverlay(e) {
+  if (ovBusy || !ovTarget) return;
+  ovBusy = true;
+  const el = $("#dropOv");
+  el.classList.remove("over"); el.classList.add("sending");
+  $("#dovTitle").textContent = t("drop_sending");
+  try {
+    const list = await collectEntries(e.dataTransfer);
+    const res = await uploadSend(list, ovTarget.key, "drag");     // "drag": the drag continues on the other PC
+    if (res && res.error) throw new Error(res.error);
+    el.classList.remove("sending"); el.classList.add("done");
+    $("#dovTitle").textContent = t("drop_sent");
+    $("#dovSub").textContent = t("drag_hint");
+  } catch (err) {
+    el.classList.remove("sending");
+    $("#dovTitle").textContent = String(err.message || err);
+  }
+}
+
 /* ------------------------------------------------------------ remote viewer */
 function showApprove(m) {
   $("#approveMsg").textContent = t("approve_msg", { name: m.name, ip: m.ip });
@@ -343,10 +375,15 @@ function wire() {
   const drop = $("#drop"), fi = $("#fileInput");
   drop.addEventListener("click", (e) => { e.preventDefault(); if (target) fi.click(); else toast(t("no_target"), "warn"); });
   fi.addEventListener("change", () => { sendEntries([...fi.files].map((f) => ({ file: f, rel: f.name }))); fi.value = ""; });
-  ["dragenter", "dragover"].forEach((ev) => addEventListener(ev, (e) => { e.preventDefault(); if (page === "files") { drop.classList.add("over"); $("#dropTitle").textContent = t("drop_release"); } }));
-  addEventListener("dragleave", (e) => { if (!e.relatedTarget) { drop.classList.remove("over"); $("#dropTitle").textContent = t("drop_here"); } });
+  ["dragenter", "dragover"].forEach((ev) => addEventListener(ev, (e) => {
+    e.preventDefault();
+    if (ovTarget && !$("#dropOv").hidden) { if (!ovBusy) $("#dropOv").classList.add("over"); return; }
+    if (page === "files") { drop.classList.add("over"); $("#dropTitle").textContent = t("drop_release"); }
+  }));
+  addEventListener("dragleave", (e) => { if (!e.relatedTarget) { drop.classList.remove("over"); $("#dropOv").classList.remove("over"); $("#dropTitle").textContent = t("drop_here"); } });
   addEventListener("drop", async (e) => {
     e.preventDefault(); drop.classList.remove("over"); $("#dropTitle").textContent = t("drop_here");
+    if (ovTarget && !$("#dropOv").hidden) return dropToOverlay(e);
     if (page !== "files") go("files");
     sendEntries(await collectEntries(e.dataTransfer));
   });

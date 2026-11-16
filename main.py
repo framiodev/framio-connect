@@ -18,12 +18,13 @@ from framio.webui import WebServer
 from framio.winapi import set_dark_titlebar, sysmetric, user32
 
 TITLE = APP_NAME
-OV_TITLE = "Framio Drop"
-OV_W = 340
-OFFSCREEN = -6000
 
 user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+user32.IsIconic.argtypes = [ctypes.c_void_p]
+user32.IsZoomed.argtypes = [ctypes.c_void_p]
+user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(wt.RECT)]
 user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
 user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
 user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
@@ -47,9 +48,6 @@ def run_webview(ctrl, url, minimized):
     import webview
     win = webview.create_window(TITLE, url, width=1220, height=820, min_size=(1000, 700),
                                 background_color="#0A1020", minimized=minimized)
-    ov = webview.create_window(OV_TITLE, url + "overlay", width=OV_W, height=600, x=OFFSCREEN, y=OFFSCREEN,
-                               frameless=True, on_top=True, focus=False, easy_drag=False,
-                               background_color="#070B16")
 
     def titlebar(dark):
         h = _hwnd(TITLE)
@@ -65,28 +63,41 @@ def run_webview(ctrl, url, minimized):
         except Exception:
             pass
 
-    def overlay_style():
-        """Tool window, never takes focus (so it cannot disturb the drag), always on top."""
-        h = _hwnd(OV_TITLE)
-        if h:
-            st = user32.GetWindowLongPtrW(h, -20)
-            user32.SetWindowLongPtrW(h, -20, st | 0x80 | 0x08000000 | 0x8)
-            user32.SetWindowPos(h, -1, OFFSCREEN, OFFSCREEN, OV_W, 600, 0x10 | 0x20 | 0x40)
+    saved = {}
 
     def overlay(action, edge=None):
-        h = _hwnd(OV_TITLE)
+        """Drag held against an edge: bring THIS window up against that edge (without stealing focus,
+        which would disturb the drag); put it back afterwards."""
+        h = _hwnd(TITLE)
         if not h:
             return
         if action == "show":
-            x0, y0 = sysmetric(76), sysmetric(77)
-            vw, vh = sysmetric(78), sysmetric(79)
-            x = x0 + vw - OV_W if edge == "right" else x0
-            user32.SetWindowPos(h, -1, x, y0, OV_W, vh, 0x10 | 0x40)       # NOACTIVATE | SHOWWINDOW
-        else:
-            user32.SetWindowPos(h, -1, OFFSCREEN, OFFSCREEN, OV_W, 600, 0x10)
+            if saved:
+                return
+            r = wt.RECT()
+            user32.GetWindowRect(h, ctypes.byref(r))
+            saved.update(rect=(r.left, r.top, r.right - r.left, r.bottom - r.top),
+                         iconic=bool(user32.IsIconic(h)), zoomed=bool(user32.IsZoomed(h)))
+            if saved["iconic"]:
+                user32.ShowWindow(h, 4)                                    # SW_SHOWNOACTIVATE
+                user32.GetWindowRect(h, ctypes.byref(r))
+            w, hh = r.right - r.left, r.bottom - r.top
+            x0, vw = sysmetric(76), sysmetric(78)
+            x = r.left
+            if not saved["zoomed"]:
+                x = x0 + vw - w if edge == "right" else x0
+            user32.SetWindowPos(h, -1, x, r.top, w, hh, 0x10 | 0x40)    # TOPMOST, NOACTIVATE, SHOW
+        elif saved:
+            x, y, w, hh = saved["rect"]
+            if saved["zoomed"]:
+                user32.SetWindowPos(h, -2, 0, 0, 0, 0, 0x10 | 0x2 | 0x1)  # just drop TOPMOST
+            else:
+                user32.SetWindowPos(h, -2, x, y, w, hh, 0x10)
+            if saved["iconic"]:
+                user32.ShowWindow(h, 6)                                    # SW_MINIMIZE
+            saved.clear()
 
     ctrl.titlebar, ctrl.attention, ctrl.overlay_cb = titlebar, attention, overlay
-    ov.events.loaded += overlay_style
     win.events.closed += lambda: ctrl.quit()
     webview.start(gui="edgechromium")
     ctrl.quit()

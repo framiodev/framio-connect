@@ -80,6 +80,9 @@ class Controller:
             self.cstate = kw["state"]
         elif kind == "rsessions":
             self.sessions = kw["sessions"]
+        elif kind == "files" and kw.get("mode") == "drag":
+            self._begin_drag(kw["paths"])
+            return
         elif kind == "files":
             who = "host" if kw["who"] == "host" else kw["who"]
             for p in kw["paths"]:
@@ -160,7 +163,20 @@ class Controller:
         self.overlay_cb("show", c["edge"])
 
     def _overlay_hide(self):
+        self.emit("overlay_hide")
         self.overlay_cb("hide")
+
+    def _begin_drag(self, paths):
+        """Files arrived in 'drag' mode: continue the drag on this PC so the user drops them anywhere."""
+        from . import dragsource
+        from .winapi import clip_set_files
+        if self.server and self.server.active:          # we were controlling the sender: take the PC back
+            self.server._leave()
+        if dragsource.start_drag(paths):
+            self.toast("drag_hint", "ok")
+        else:                                            # no pythonnet: fall back to the clipboard
+            clip_set_files(paths)
+            self.toast("drag_fallback", "warn")
 
     # ------------------------------------------------------------ share
     def _start_share(self):
@@ -369,7 +385,8 @@ class Controller:
             return None
         return os.path.join(self.outbox, batch, *parts)
 
-    def api_send(self, batch, target, names):
+    def api_send(self, batch, target, names, mode="file"):
+        mode = "drag" if mode == "drag" else "file"
         if not re.fullmatch(r"[a-f0-9]{8,32}", batch or ""):
             return {"error": "bad_batch"}
         base = os.path.join(self.outbox, batch)
@@ -385,9 +402,11 @@ class Controller:
             conn = self.server.clients.get(target)
             if not conn:
                 return {"error": "no_target"}
-            tok = self.server.send_files_to(conn, paths)
+            tok = self.server.send_files_to(conn, paths, mode)
             self.tokens[tok] = tid
             self.transfers[tid]["status"] = "queued"
+            if mode == "drag":
+                self.server.enter_here(conn)          # keyboard/mouse follow the files to the other PC
             self.changed()
             return {"ok": True}
         if self.client and self.client.connected:
@@ -398,7 +417,7 @@ class Controller:
                         if pct != self.transfers[tid]["pct"]:
                             self.transfers[tid]["pct"] = pct
                             self.changed()
-                    self.client.push_files(paths, "file", prog)
+                    self.client.push_files(paths, mode, prog)
                     self.transfers[tid].update(status="done", pct=100)
                 except Exception as e:
                     self.transfers[tid].update(status="error")

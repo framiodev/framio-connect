@@ -26,7 +26,6 @@ user32.WindowFromPoint.restype = ctypes.c_void_p
 user32.GetClassNameW.argtypes = [ctypes.c_void_p, wt.LPWSTR, ctypes.c_int]
 
 EDGE = 40          # px from the screen edge that arms the panel
-STRIP = 360        # width of the panel; the drag may roam inside it without hiding it
 MOVE_MIN = 30      # px the pointer must travel after the press (signal 2)
 SHELL_LEAF = {"SysListView32", "DirectUIHWND", "SHELLDLL_DefView"}
 
@@ -94,12 +93,6 @@ class DragWatcher:
                             self.shown, last = c, now
                             break
                 else:
-                    c = self.shown
-                    inside = pt.x >= x1 - STRIP if c["edge"] == "right" else pt.x <= x0 + STRIP
-                    if inside:
-                        last = now
-                    elif now - last > 0.35:
-                        self.hide()
-                        self.shown = None
+                    last = now                                  # drag still held: keep the drop zone up
             except Exception:
                 pass

@@ -66,7 +66,7 @@ S = {
         "log_r_bad_password": "Wrong remote password from {ip}", "log_r_denied": "Denied {name} ({ip})",
         "log_r_started": "Remote session started: {name} ({ip})", "log_r_ended": "Remote session ended ({ip})",
         "log_started": "Sharing started", "log_stopped": "Sharing stopped",
-        "drop_to": "Drop to send to {name}", "drop_sending": "Sending...", "drop_sent": "Sent!", "latency": "Latency", "udp_fast": "fast path",
+        "drag_hint": "Click where you want to drop the files - Esc cancels", "drag_fallback": "Could not start a drag - the files are on the clipboard (Ctrl+V)", "drop_to": "Drop to send to {name}", "drop_sending": "Sending...", "drop_sent": "Sent!", "latency": "Latency", "udp_fast": "fast path",
         "ok": "OK", "cancel": "Cancel", "close": "Close",
     },
     "tr": {
@@ -133,7 +133,7 @@ S = {
         "log_r_bad_password": "{ip} yanlış uzak parola girdi", "log_r_denied": "{name} ({ip}) reddedildi",
         "log_r_started": "Uzak oturum başladı: {name} ({ip})", "log_r_ended": "Uzak oturum bitti ({ip})",
         "log_started": "Paylaşım başlatıldı", "log_stopped": "Paylaşım durduruldu",
-        "drop_to": "{name} cihazına göndermek için bırakın", "drop_sending": "Gönderiliyor...", "drop_sent": "Gönderildi!", "latency": "Gecikme", "udp_fast": "hızlı yol",
+        "drag_hint": "Dosyaları bırakmak istediğiniz yere tıklayın - Esc iptal eder", "drag_fallback": "Sürükleme başlatılamadı - dosyalar panoda (Ctrl+V)", "drop_to": "{name} cihazına göndermek için bırakın", "drop_sending": "Gönderiliyor...", "drop_sent": "Gönderildi!", "latency": "Gecikme", "udp_fast": "hızlı yol",
         "ok": "Tamam", "cancel": "İptal", "close": "Kapat",
     },
 }

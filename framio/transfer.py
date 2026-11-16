@@ -13,6 +13,27 @@ def downloads_dir():
     return d
 
 
+def staging_dir():
+    """Fresh temp folder for files that are about to be dragged elsewhere; old ones are purged."""
+    import secrets
+    import shutil
+    import tempfile
+    import time
+    base = os.path.join(tempfile.gettempdir(), "FramioDrag")
+    os.makedirs(base, exist_ok=True)
+    now = time.time()
+    for d in os.listdir(base):
+        p = os.path.join(base, d)
+        try:
+            if now - os.path.getmtime(p) > 3600:
+                shutil.rmtree(p, ignore_errors=True)
+        except OSError:
+            pass
+    d = os.path.join(base, secrets.token_hex(4))
+    os.makedirs(d)
+    return d
+
+
 def iter_files(paths):
     for p in paths:
         base = os.path.basename(p.rstrip("\\/")) or "file"

@@ -293,3 +293,20 @@ h4 { font-size: 13px; font-weight: 650; color: var(--muted); margin: 22px 0 10px
 .pop button { display: flex; justify-content: space-between; gap: 18px; width: 100%; padding: 10px 12px; border-radius: 10px; font-weight: 600; font-size: 13px; text-align: left; }
 .pop button:hover { background: var(--glass3); }
 .pop small { color: var(--muted); font-family: var(--mono); }
+
+/* ---------- in-app drop zone (shown while a file drag is held against a screen edge) ---------- */
+#dropOv { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); animation: fade .25s; }
+#dropOv::before { content: ""; position: absolute; inset: 18px; border-radius: 28px; padding: 3px; background: conic-gradient(from var(--ang, 0deg), var(--accent), var(--accent2), transparent 40%, var(--accent)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spinring 5s linear infinite; opacity: .8; }
+.dov-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; padding: 20px; animation: rise .6s var(--ease); }
+.orb { position: relative; width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center; color: var(--on-accent); background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 24px 70px -12px color-mix(in srgb, var(--accent) 80%, transparent); transition: transform .4s var(--spring); }
+.orb .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--accent); animation: ring 2s ease-out infinite; }
+.orb .ring.r2 { animation-delay: 1s; }
+.orb .arrow, .orb .check { width: 50px; height: 50px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#dropOv[data-edge="left"] .arrow { transform: scaleX(-1); }
+.orb .check { position: absolute; opacity: 0; transform: scale(.4); }
+.orb .spin { position: absolute; inset: 16px; border-radius: 50%; border: 3px solid rgba(4,20,28,.25); border-top-color: var(--on-accent); opacity: 0; animation: spin .8s linear infinite; }
+#dovTitle { font-size: 26px; font-weight: 700; letter-spacing: -.02em; max-width: 520px; }
+#dovSub { color: var(--muted); font-size: 14px; }
+#dropOv.over .orb { transform: scale(1.18); }
+#dropOv.sending .arrow { opacity: 0; } #dropOv.sending .spin { opacity: 1; }
+#dropOv.done .arrow, #dropOv.done .spin { opacity: 0; } #dropOv.done .check { opacity: 1; transform: none; transition: all .5s var(--spring); }

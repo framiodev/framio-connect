@@ -316,7 +316,8 @@ class Server:
             q = f.readline(256).decode(errors="replace").split()
             if len(q) >= 1 and q[0] == "PUSH":
                 mode = q[1] if len(q) > 1 else "file"
-                saved = transfer.recv_files(f, s, transfer.downloads_dir())
+                dest = transfer.staging_dir() if mode == "drag" else transfer.downloads_dir()
+                saved = transfer.recv_files(f, s, dest)
                 if mode == "clip" and self.clip_files:
                     clip_set_files(saved)
                 self.events("files", paths=saved, mode=mode, who=name)
@@ -398,6 +399,12 @@ class Server:
         user32.SetCursorPos(self.cx, self.cy)
         threading.Thread(target=self._clip_to, args=(conn,), daemon=True).start()
         self.events("active", name=conn.name)
+
+    def enter_here(self, conn):
+        """Hand the keyboard/mouse to `conn` right now, at the current cursor height (drag hand-over)."""
+        pt = ctypes.wintypes.POINT()
+        user32.GetCursorPos(ctypes.byref(pt))
+        self._enter(conn, pt.y)
 
     def _leave(self):
         conn = self.active
@@ -633,7 +640,8 @@ class Client:
             try:
                 s.settimeout(120)
                 s.sendall(f"PULL {token}\n".encode())
-                saved = transfer.recv_files(f, s, transfer.downloads_dir())
+                dest = transfer.staging_dir() if mode == "drag" else transfer.downloads_dir()
+                saved = transfer.recv_files(f, s, dest)
             finally:
                 s.close()
             if mode == "clip" and self.clip_files:

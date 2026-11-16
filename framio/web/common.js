@@ -32,11 +32,11 @@ async function collectEntries(dt) {
 }
 
 /* Upload the files to the local app, then ask it to send them to `target` */
-async function uploadSend(list, target) {
+async function uploadSend(list, target, mode = "file") {
   const batch = [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, "0")).join("");
   for (const { file, rel } of list) {
     const r = await fetch(`/api/upload?b=${batch}&rel=${encodeURIComponent(rel)}`, { method: "POST", headers: { "X-Token": TOK }, body: file });
     if (!r.ok) throw new Error("upload failed");
   }
-  return api("send", batch, target, []);
+  return api("send", batch, target, [], mode);
 }

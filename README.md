@@ -7,7 +7,7 @@
 - Keyboard & mouse sharing - push the cursor to the screen edge to switch PCs (Scroll Lock = back to host)
 - Low-latency cursor: positions go over UDP (250 updates/s max), clicks/keys over TCP; live latency shown in the UI
 - Clipboard sharing: text and copied files (Ctrl+C on one PC, Ctrl+V on the other)
-- Drag a file/folder from the desktop or Explorer to a screen edge that faces another PC: a "drop here" panel appears, release to send (works both ways)
+- Drag a file/folder from the desktop or Explorer to a screen edge that faces another PC: the app window docks to that edge with a drop zone; release, and the drag continues on the other PC - click where you want the files (Esc cancels). Works both ways.
 - Drag-and-drop on the Files page; files land in `Downloads\Framio`
 - Remote desktop on the local network with ID + password and approval prompt
 - Turkish / English, dark / light theme
@@ -27,8 +27,8 @@ Download `FramioConnect.exe` from the latest [Release](../../releases/latest), r
 
 ## Releasing an update
 ```
-git tag v2.3.0
-git push origin v2.3.0
+git tag v2.4.0
+git push origin v2.4.0
 ```
 GitHub Actions builds the exe and publishes the release; every installed copy updates itself within ~6 hours (or via Settings -> Check for updates).
 
