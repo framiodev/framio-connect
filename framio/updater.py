@@ -95,5 +95,5 @@ def apply_and_restart(new_exe, extra_args="--autostart"):
             f'start "" "{target}" {extra_args}\r\n'
             'del "%~f0"\r\n')
     from .winapi import clean_pyi_env
-    subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000 | 0x00000008, close_fds=True,
+    subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000 | 0x00000200, close_fds=True,   # hidden console shared by ping/move; DETACHED_PROCESS would give every ping its own visible window
                      env=clean_pyi_env())     # never hand our _MEI temp folder to the new exe
