@@ -94,4 +94,6 @@ def apply_and_restart(new_exe, extra_args="--autostart"):
             ")\r\n"
             f'start "" "{target}" {extra_args}\r\n'
             'del "%~f0"\r\n')
-    subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000 | 0x00000008, close_fds=True)
+    from .winapi import clean_pyi_env
+    subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000 | 0x00000008, close_fds=True,
+                     env=clean_pyi_env())     # never hand our _MEI temp folder to the new exe

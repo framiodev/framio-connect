@@ -200,8 +200,28 @@ def set_dark_titlebar(hwnd, dark):
         pass
 
 
+def clean_pyi_env(env=None):
+    """Environment for relaunching our own onefile exe.
+
+    A PyInstaller onefile process exports variables (_MEIPASS2 / _PYI_*) that point at ITS temp
+    extraction folder. A child exe that inherits them tries to load python312.dll from a folder that
+    is deleted as soon as the parent exits ("Failed to load Python DLL ... _MEIxxxx"). Strip them and
+    ask the new bootloader to start from a clean slate.
+    """
+    import os
+    src = os.environ if env is None else env
+    out = {k: v for k, v in src.items() if not (k.startswith("_MEI") or k.startswith("_PYI"))}
+    out["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return out
+
+
 def run_elevated(exe, params):
     """Launch exe elevated (one UAC prompt). Returns True if the launch was accepted."""
+    import os
+    env = clean_pyi_env()
+    for k in [k for k in os.environ if k.startswith("_MEI") or k.startswith("_PYI")]:
+        del os.environ[k]                      # ShellExecute inherits this process' environment
+    os.environ.update(PYINSTALLER_RESET_ENVIRONMENT=env["PYINSTALLER_RESET_ENVIRONMENT"])
     r = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, None, 0)
     return r > 32
 

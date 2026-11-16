@@ -114,6 +114,13 @@ def main():
     ctrl = Controller()
     srv = WebServer(ctrl)
     url = srv.start()
+    test_update = os.environ.get("FRAMIO_TEST_UPDATE")      # test hook: run the swap-and-restart flow
+    if test_update:
+        def _swap():
+            from framio import updater
+            updater.apply_and_restart(test_update)
+            ctrl.quit()
+        threading.Timer(8, _swap).start()
     if "--serve-only" in sys.argv:
         print(f"{url}\nTOKEN={srv.token}", flush=True)
         threading.Event().wait()
