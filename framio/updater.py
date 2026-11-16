@@ -55,23 +55,24 @@ def download(info, progress=None):
         want = r.read(512).decode().split()[0].lower()
     d = tempfile.mkdtemp(prefix="framio-update-")
     path = os.path.join(d, EXE_NAME)
-    h = hashlib.sha256()
-    with _get(info["exe_url"], timeout=60) as r, open(path, "wb") as out:
-        total = int(r.headers.get("Content-Length") or 0)
-        got = 0
-        while True:
-            chunk = r.read(1 << 18)
-            if not chunk:
-                break
-            out.write(chunk)
-            h.update(chunk)
-            got += len(chunk)
-            if progress and total:
-                progress(got / total)
-    if h.hexdigest() != want:
-        os.remove(path)
-        raise RuntimeError("checksum mismatch - update discarded")
-    return path
+    for attempt in range(3):            # a truncated/corrupt download is retried, never installed
+        h = hashlib.sha256()
+        with _get(info["exe_url"], timeout=60) as r, open(path, "wb") as out:
+            total = int(r.headers.get("Content-Length") or 0)
+            got = 0
+            while True:
+                chunk = r.read(1 << 18)
+                if not chunk:
+                    break
+                out.write(chunk)
+                h.update(chunk)
+                got += len(chunk)
+                if progress and total:
+                    progress(got / total)
+        if h.hexdigest() == want and (not total or got == total):
+            return path
+    os.remove(path)
+    raise RuntimeError("checksum mismatch - update discarded")
 
 
 def apply_and_restart(new_exe, extra_args="--autostart"):
