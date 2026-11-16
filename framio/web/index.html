@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="tok" content="__TOKEN__">
+<meta name="color-scheme" content="dark light">
+<title>Framio Connect</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2BE6D2"/><stop offset="1" stop-color="#3B7BFF"/>
+    </linearGradient>
+    <symbol id="i-share" viewBox="0 0 24 24"><rect x="2" y="4" width="14" height="10" rx="2"/><path d="M6 18h6M9 14v4"/><path d="M15.5 12.5 22 15l-3.2 1.1-1.1 3.2z"/></symbol>
+    <symbol id="i-files" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-remote" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="m9 9 2 2 4-4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M10.7 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-2.5 3.4M6.5 6.5A16.6 16.6 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="i-cast" viewBox="0 0 24 24"><path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><path d="M2 12a9 9 0 0 1 8 8M2 16a5 5 0 0 1 4 4M2 20h.01"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-max" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.2 7.8 8 9 4.8-1.2 8-4.5 8-9V6z"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M5 3l14 7-6 2-2 6z" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="url(#lg)"/><path d="M16 12h9.5a2.5 2.5 0 0 1 0 5H21v5h6a2.5 2.5 0 0 1 0 5h-6v8.5a2.5 2.5 0 0 1-5 0z" fill="#fff"/><circle cx="35.5" cy="14.5" r="4" fill="#0B1226"/><circle cx="35.5" cy="14.5" r="2" fill="#fff"/></svg>
+      <div class="brand-t"><b>Framio</b><span>Connect</span></div>
+    </div>
+    <nav id="nav">
+      <i class="nav-ind"></i>
+      <button data-page="share" class="on"><svg class="ic"><use href="#i-share"/></svg><span data-i="nav_share"></span></button>
+      <button data-page="files"><svg class="ic"><use href="#i-files"/></svg><span data-i="nav_files"></span></button>
+      <button data-page="remote"><svg class="ic"><use href="#i-remote"/></svg><span data-i="nav_remote"></span></button>
+      <button data-page="settings"><svg class="ic"><use href="#i-settings"/></svg><span data-i="nav_settings"></span></button>
+    </nav>
+    <div class="side-foot">
+      <button class="upd-chip" id="updChip" hidden><svg class="ic"><use href="#i-download"/></svg><span></span></button>
+      <p class="tag" data-i="tagline"></p>
+      <span class="ver" id="ver"></span>
+    </div>
+  </aside>
+
+  <main id="main">
+    <!-- ============ SHARE ============ -->
+    <section class="page on" id="page-share">
+      <header class="ph"><h1 data-i="share_title"></h1><p data-i="share_sub"></p></header>
+      <div class="grid g2">
+        <div class="card">
+          <h3 data-i="conn_title"></h3>
+          <div class="field"><label data-i="role"></label>
+            <div class="seg" id="segMode">
+              <button data-v="host"><span data-i="role_host"></span></button>
+              <button data-v="client"><span data-i="role_client"></span></button><i class="thumb"></i>
+            </div>
+          </div>
+          <div class="field"><label data-i="key"></label>
+            <div class="inp-row">
+              <input id="keyInput" class="inp mono" spellcheck="false" autocomplete="off" maxlength="64">
+              <button class="btn ghost icon" id="btnCopyKey" data-it="copy"><svg class="ic"><use href="#i-copy"/></svg></button>
+              <button class="btn ghost icon" id="btnNewKey" data-it="new_key"><svg class="ic"><use href="#i-refresh"/></svg></button>
+            </div>
+          </div>
+          <div class="field" id="fIps"><label data-i="my_ips"></label><div class="chips" id="ips"></div></div>
+          <div class="field" id="fHost" hidden><label data-i="host_ip"></label>
+            <div class="inp-row" style="position:relative">
+              <input id="hostInput" class="inp mono" spellcheck="false" autocomplete="off" placeholder="192.168.1.10">
+              <button class="btn ghost" id="btnFind"><span data-i="find_host"></span></button>
+              <div class="pop" id="findPop" hidden></div>
+            </div>
+          </div>
+          <div class="field" id="fSide" hidden><label data-i="my_side"></label>
+            <div class="seg" id="segSide">
+              <button data-v="left"><span data-i="left"></span></button>
+              <button data-v="right"><span data-i="right"></span></button><i class="thumb"></i>
+            </div>
+          </div>
+          <div class="sw"><div><b data-i="clip_text"></b><small data-i="clip_text_d"></small></div><button class="tg" id="tgClipText" role="switch"><i></i></button></div>
+          <div class="sw"><div><b data-i="clip_files"></b><small data-i="clip_files_d"></small></div><button class="tg" id="tgClipFiles" role="switch"><i></i></button></div>
+          <div class="cta">
+            <button class="btn primary lg" id="btnShare"><svg class="ic"><use href="#i-power"/></svg><span></span></button>
+            <div class="pill" id="pill"><i class="dot"></i><span></span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 data-i="layout"></h3>
+          <div class="stage" id="stage"></div>
+          <p class="hint" data-i="hint_switch"></p>
+        </div>
+      </div>
+      <div class="card">
+        <h3 data-i="log"></h3>
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+
+    <!-- ============ FILES ============ -->
+    <section class="page" id="page-files">
+      <header class="ph"><h1 data-i="files_title"></h1><p data-i="files_sub"></p></header>
+      <div class="card">
+        <div class="row between"><h3 data-i="send_to"></h3><div class="targets" id="targets"></div></div>
+        <label class="drop" id="drop">
+          <input type="file" id="fileInput" multiple hidden>
+          <span class="drop-ring"></span>
+          <span class="drop-ico"><svg class="ic"><use href="#i-files"/></svg></span>
+          <b id="dropTitle" data-i="drop_here"></b>
+          <span id="dropSub" data-i="or_browse"></span>
+        </label>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3 data-i="transfers"></h3><div id="transfers"></div></div>
+        <div class="card">
+          <div class="row between"><h3 data-i="received"></h3>
+            <button class="btn ghost sm" id="btnOpenDl"><svg class="ic"><use href="#i-folder"/></svg><span data-i="open_folder"></span></button></div>
+          <div id="received"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ REMOTE ============ -->
+    <section class="page" id="page-remote">
+      <header class="ph"><h1 data-i="remote_title"></h1><p data-i="remote_sub"></p></header>
+      <div class="grid g2">
+        <div class="card">
+          <h3 data-i="this_device"></h3>
+          <div class="idbox"><small data-i="your_id"></small><div class="bigid" id="myId"></div></div>
+          <div class="field"><label data-i="password"></label>
+            <div class="inp-row">
+              <input id="remotePw" class="inp mono" type="password" readonly>
+              <button class="btn ghost icon" id="btnPwEye"><svg class="ic"><use href="#i-eye"/></svg></button>
+              <button class="btn ghost icon" id="btnPwCopy" data-it="copy"><svg class="ic"><use href="#i-copy"/></svg></button>
+              <button class="btn ghost icon" id="btnPwNew" data-it="regen"><svg class="ic"><use href="#i-refresh"/></svg></button>
+            </div>
+          </div>
+          <div class="sw"><div><b data-i="allow_remote"></b><small data-i="allow_remote_d"></small></div><button class="tg" id="tgAllow" role="switch"><i></i></button></div>
+          <div class="sw"><div><b data-i="ask_approval"></b><small data-i="ask_approval_d"></small></div><button class="tg" id="tgApproval" role="switch"><i></i></button></div>
+          <h4 data-i="sessions"></h4>
+          <div id="sessions"></div>
+        </div>
+        <div class="card">
+          <h3 data-i="connect_title"></h3>
+          <div class="field"><label data-i="partner"></label><input id="partnerInput" class="inp mono" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label data-i="partner_pw"></label><input id="partnerPw" class="inp mono" type="password" autocomplete="off"></div>
+          <button class="btn primary lg" id="btnConnect"><svg class="ic"><use href="#i-cast"/></svg><span data-i="connect"></span></button>
+          <h4 data-i="nearby"></h4>
+          <div class="devs" id="nearby"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="page" id="page-settings">
+      <header class="ph"><h1 data-i="settings_title"></h1><p data-i="settings_sub"></p></header>
+      <div class="grid g2">
+        <div class="card">
+          <h3 data-i="appearance"></h3>
+          <div class="field"><label data-i="language"></label>
+            <div class="seg" id="segLang"><button data-v="en">English</button><button data-v="tr">T&uuml;rk&ccedil;e</button><i class="thumb"></i></div>
+          </div>
+          <div class="field"><label data-i="theme"></label>
+            <div class="seg" id="segTheme">
+              <button data-v="dark"><span data-i="theme_dark"></span></button>
+              <button data-v="light"><span data-i="theme_light"></span></button>
+              <button data-v="auto"><span data-i="theme_auto"></span></button><i class="thumb"></i>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 data-i="system"></h3>
+          <div class="sw"><div><b data-i="autostart"></b><small data-i="autostart_d"></small></div><button class="tg" id="tgAutostart" role="switch"><i></i></button></div>
+          <div class="actions">
+            <button class="btn ghost" id="btnInstall"><svg class="ic"><use href="#i-download"/></svg><span data-i="install_here"></span></button>
+            <button class="btn ghost" id="btnFirewall"><svg class="ic"><use href="#i-shield"/></svg><span data-i="firewall"></span></button>
+            <button class="btn ghost" id="btnAdmin"><svg class="ic"><use href="#i-power"/></svg><span data-i="admin"></span></button>
+          </div>
+          <p class="hint" data-i="firewall_hint"></p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row between">
+          <div><h3 data-i="updates"></h3><div class="upd-line"><span id="verLine"></span><span id="updMsg" class="upd-msg"></span></div></div>
+          <button class="btn primary" id="btnCheck"><svg class="ic"><use href="#i-refresh"/></svg><span data-i="check_updates"></span></button>
+        </div>
+        <div class="bar" id="updBar" hidden><i></i></div>
+        <div class="sw"><div><b data-i="auto_update"></b><small data-i="auto_update_d"></small></div><button class="tg" id="tgAutoUpd" role="switch"><i></i></button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<div class="modal-back" id="approve" hidden>
+  <div class="modal">
+    <div class="modal-ico"><svg class="ic"><use href="#i-cast"/></svg></div>
+    <h2 data-i="approve_title"></h2>
+    <p id="approveMsg"></p>
+    <div class="modal-btns">
+      <button class="btn ghost" id="btnDeny"><span data-i="deny"></span></button>
+      <button class="btn primary" id="btnAllow"><span data-i="allow"></span></button>
+    </div>
+  </div>
+</div>
+
+<div id="viewer" hidden>
+  <img id="vimg" alt="" draggable="false">
+  <div class="vbar" id="vbar">
+    <span class="vdot"></span><b id="vname"></b><small data-i="viewer_hint"></small>
+    <button class="btn ghost sm" id="btnFs"><svg class="ic"><use href="#i-max"/></svg><span data-i="fullscreen"></span></button>
+    <button class="btn danger sm" id="btnVClose"><svg class="ic"><use href="#i-x"/></svg><span data-i="disconnect"></span></button>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-"""Loopback self-test: auth, mouse injection, clipboard text, file transfer (both ways),
+﻿"""Loopback self-test: auth, mouse injection, clipboard text, file transfer (both ways),
 remote desktop frames, discovery, version compare.  Run:  python tools/selftest.py"""
 import ctypes
 import os
@@ -61,8 +61,8 @@ winapi.user32.SetCursorPos(*old)
 
 # 4) clipboard text both directions (restores the user's clipboard afterwards)
 saved = winapi.clip_get()
-srv.clients["right"].send("CT " + share._b64("hello üğş from host"))
-check("clipboard host->client", wait(lambda: winapi.clip_get() == ("text", "hello üğş from host")))
+srv.clients["right"].send("CT " + share._b64("hello Ã¼ÄŸÅŸ from host"))
+check("clipboard host->client", wait(lambda: winapi.clip_get() == ("text", "hello Ã¼ÄŸÅŸ from host")))
 winapi.clip_set_text("from client side")
 cli._clip_to_host()
 check("clipboard client->host", wait(lambda: srv.clients["right"].last_sig_out == repr(("text", "from client side"))))
@@ -71,13 +71,13 @@ if saved and saved[0] == "text":
 
 # 5) file transfer: client -> host (push) and host -> client (pull), incl. a folder + unicode name
 src = os.path.join(tmp, "src")
-os.makedirs(os.path.join(src, "klasör"))
+os.makedirs(os.path.join(src, "klasÃ¶r"))
 open(os.path.join(src, "a.txt"), "wb").write(b"A" * 3_000_000)
-open(os.path.join(src, "klasör", "b ç.txt"), "wb").write(b"hello")
-cli.push_files([os.path.join(src, "a.txt"), os.path.join(src, "klasör")])
+open(os.path.join(src, "klasÃ¶r", "b Ã§.txt"), "wb").write(b"hello")
+cli.push_files([os.path.join(src, "a.txt"), os.path.join(src, "klasÃ¶r")])
 dl = transfer.downloads_dir()
 check("push client->host", wait(lambda: os.path.exists(os.path.join(dl, "a.txt")) and
-                                os.path.exists(os.path.join(dl, "klasör", "b ç.txt"))))
+                                os.path.exists(os.path.join(dl, "klasÃ¶r", "b Ã§.txt"))))
 check("push size intact", os.path.getsize(os.path.join(dl, "a.txt")) == 3_000_000)
 before = set(os.listdir(dl))
 srv.send_files_to(srv.clients["right"], [os.path.join(src, "a.txt")], "file")
@@ -119,5 +119,24 @@ d1.stop()
 check("version compare", updater.is_newer("v2.1.0", "2.0.9") and not updater.is_newer("v2.0.0", "2.0.0")
       and updater.is_newer("3.0", "2.9.9"))
 
+
+# 10) web UI server: token + host-header protection, boot payload
+import urllib.request, urllib.error
+from framio.controller import Controller
+from framio.webui import WebServer
+ctrl = Controller()
+ws = WebServer(ctrl); ws.start()
+def http(path, headers=None):
+    req = urllib.request.Request(ws.url.rstrip("/") + path, headers=headers or {})
+    try:
+        return urllib.request.urlopen(req, timeout=5).status
+    except urllib.error.HTTPError as e:
+        return e.code
+check("web: page served", http("/") == 200)
+check("web: api without token -> 401", http("/api/boot") == 401)
+check("web: api with token -> 200", http("/api/boot", {"X-Token": ws.token}) == 200)
+check("web: bad Host header -> 403", http("/", {"Host": "evil.example.com"}) == 403)
+check("web: path traversal blocked", http("/static/..%2f..%2fcontroller.py") in (403, 404))
 print("\nFAILED: " + ", ".join(fails) if fails else "\nALL PASSED")
 sys.exit(1 if fails else 0)
+

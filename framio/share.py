@@ -209,6 +209,7 @@ class Server:
                 ent = self.pending.pop(q[1], None)
                 if ent:
                     transfer.send_files(s, f, ent[0])
+                    self.events("pulled", token=q[1])
         except Exception as e:
             self.log("error", msg=str(e), ip=name)
         finally:
@@ -224,6 +225,7 @@ class Server:
         token = secrets.token_hex(8)
         self.pending[token] = (list(paths), now)
         conn.send(f"XF {token} {mode}")
+        return token
 
     # ------------------------------------------------------------ clipboard sync
     def _clip_to(self, conn):

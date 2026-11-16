@@ -38,7 +38,7 @@ jobs:
       - name: Build exe
         run: |
           python tools/make_icon.py
-          pyinstaller --onefile --noconsole --name FramioConnect --icon assets/framio.ico --collect-all tkinterdnd2 main.py
+          pyinstaller --onefile --noconsole --name FramioConnect --icon assets/framio.ico --collect-all webview --collect-all pythonnet --collect-all clr_loader --add-data "framio/web;framio/web" main.py
 
       - name: Checksum
         shell: pwsh
