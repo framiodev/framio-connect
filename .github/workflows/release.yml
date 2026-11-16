@@ -1,0 +1,52 @@
+name: release
+
+# Push a tag like v2.1.0 -> builds FramioConnect.exe and publishes a GitHub Release.
+# Every installed copy checks the latest release and updates itself automatically.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Stamp version and repository into the app
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          $f = "framio/__init__.py"
+          $t = Get-Content $f -Raw
+          $t = $t -replace '__version__ = ".*?"', ('__version__ = "{0}"' -f $v)
+          $t = $t -replace 'GITHUB_REPO = ".*?"', ('GITHUB_REPO = "{0}"' -f "${{ github.repository }}")
+          Set-Content $f $t -NoNewline
+
+      - name: Self-test
+        run: python tools/selftest.py
+
+      - name: Build exe
+        run: |
+          python tools/make_icon.py
+          pyinstaller --onefile --noconsole --name FramioConnect --icon assets/framio.ico --collect-all tkinterdnd2 main.py
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist/FramioConnect.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  FramioConnect.exe" | Set-Content dist/FramioConnect.exe.sha256 -NoNewline
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/FramioConnect.exe dist/FramioConnect.exe.sha256 --generate-notes --title "Framio Connect ${{ github.ref_name }}"
