@@ -1,4 +1,4 @@
-﻿"""Loopback self-test: auth, mouse injection, clipboard text, file transfer (both ways),
+"""Loopback self-test: auth, mouse injection, clipboard text, file transfer (both ways),
 remote desktop frames, discovery, version compare.  Run:  python tools/selftest.py"""
 import ctypes
 import os
@@ -52,11 +52,17 @@ check("client connected", wait(lambda: "right" in srv.clients and cli.connected)
 p = winapi.POINT()
 winapi.user32.GetCursorPos(ctypes.byref(p))
 old = (p.x, p.y)
-srv.clients["right"].send("M 32767 32767")
-time.sleep(0.4)
-winapi.user32.GetCursorPos(ctypes.byref(p))
 w, h = winapi.sysmetric(0), winapi.sysmetric(1)
-check("mouse injection", abs(p.x - w // 2) < 4 and abs(p.y - h // 2) < 4, (p.x, p.y))
+def near():
+    winapi.user32.GetCursorPos(ctypes.byref(p))
+    return abs(p.x - w // 2) < 4 and abs(p.y - h // 2) < 4
+ok = False
+for _ in range(8):                      # retry: a human moving the mouse can race this test
+    srv.clients["right"].send("M 32767 32767")
+    if wait(near, 0.6):
+        ok = True
+        break
+check("mouse injection", ok, (p.x, p.y))
 winapi.user32.SetCursorPos(*old)
 
 # 4) clipboard text both directions (restores the user's clipboard afterwards)
